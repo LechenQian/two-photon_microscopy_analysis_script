@@ -127,7 +127,8 @@ filename ="/Users/lechenqian/Dropbox (Uchida Lab)/Analyze_imaging_data/partial_t
 partial_dict = load_pickleddata(filename)
 #%%
 # deg_d1 = ['D1-02','D1-05','D1-12','D1-13']
-deg_d1 = ['D1-05','D1-02','D1-12','D1-13']
+deg_d1_nonogo = ['D1-02']
+deg_d1 = ['D1-12','D1-13']
 deg_d2 = ['D2-02','D2-04','D2-16','D2-17']
 con_d1 = ['D1-15']
 con_d2 = ['D2-18','D2-21','D2-23','D2-24']
@@ -137,12 +138,12 @@ deg_d1_notr  = ['D1-01','D1-03','D1-09']
 def plot_heatmap2(avg_mat,odor_on_frame,window_pre,window_post,line_position,is_save,title):
     
     
-    plt.figure(figsize = (3,7))
+    plt.figure(figsize = (3,5))
     
     if window_pre == 5:
         peak = np.mean(avg_mat[:,int(window_pre):int(window_pre+15)],axis = 1)
     else:
-        peak = np.mean(avg_mat[:,int(window_pre):int(window_pre+10)],axis = 1)
+        peak = np.mean(avg_mat[:,int(window_pre):int(window_pre+15)],axis = 1)
     order = np.argsort(-peak)
     sns.heatmap(avg_mat[order,:],vmin = -5,vmax = 5,cmap = 'RdBu_r')
     for pos in line_position:
@@ -154,13 +155,13 @@ def plot_heatmap2(avg_mat,odor_on_frame,window_pre,window_post,line_position,is_
     plt.yticks(np.arange(0, avg_mat.shape[0]+1, step=50),np.arange(0, avg_mat.shape[0]+1, step=50))
     plt.title(title)
     if is_save:
-        plt.savefig('figures/{}'.format(title), bbox_inches="tight", dpi = 100,transparent = True)
+        plt.savefig('figures2/{}'.format(title), bbox_inches="tight", dpi = 100,transparent = True)
     plt.show()
 
 def plot_heatmap_concat(avg_mat,window_pre,line_position,is_save,title):
     
     
-    plt.figure(figsize = (12,7))
+    plt.figure(figsize = (12,5))
     
     if window_pre == 5:
         peak = np.mean(avg_mat[:,int(window_pre):int(window_pre+15)],axis = 1)
@@ -178,13 +179,13 @@ def plot_heatmap_concat(avg_mat,window_pre,line_position,is_save,title):
     plt.yticks(np.arange(0, avg_mat.shape[0]+1, step=50),np.arange(0, avg_mat.shape[0]+1, step=50))
     plt.title(title)
     if is_save:
-        plt.savefig('figures/{}.png'.format(title), bbox_inches="tight", dpi = 100,transparent = True)
+        plt.savefig('figures2/{}.png'.format(title), bbox_inches="tight", dpi = 100,transparent = True)
     plt.show()
     
 def plot_heatmap_concat_nonsort(avg_mat,window_pre,line_position,h_line_position,vlim, is_save,title):
     
     
-    plt.figure(figsize = (12,7))
+    plt.figure(figsize = (12,5))
 
     sns.heatmap(avg_mat,vmin = -vlim,vmax = vlim,cmap = 'RdBu_r')
     for pos in line_position:
@@ -199,30 +200,34 @@ def plot_heatmap_concat_nonsort(avg_mat,window_pre,line_position,h_line_position
     plt.yticks(np.arange(0, avg_mat.shape[0]+1, step=50),np.arange(0, avg_mat.shape[0]+1, step=50))
     plt.title(title)
     if is_save:
-        plt.savefig('figures/{}.png'.format(title), bbox_inches="tight", dpi = 100,transparent = True)
+        plt.savefig('figures2/{}.png'.format(title), bbox_inches="tight", dpi = 100,transparent = True)
     plt.show()
 #%%
 session = [1,3,5,6,8,10]
 for i in range(6):
-    deg_D1_go = stack_traces_from_multi_mice(deg_d1+deg_d1_notr, partial_dict,
+    # data = stack_traces_from_multi_mice(deg_d1+deg_d1_notr, partial_dict,
+    #                                               'aligned_dff_average', 'no_go','axis1',
+    #                                               partial = True, index_list=[i])
+    data = stack_traces_from_multi_mice(con_d2, partial_dict,
                                                   'aligned_dff_average', 'go','axis1',
                                                   partial = True, index_list=[i])
-    # sns.heatmap(deg_D1_go_cond1)
     
     
-    plot_heatmap2(deg_D1_go,10,10,50,[10,15,27.5],True,'deg d1 session {} W D1-05'.format(session[i]))
+    plot_heatmap2(data,10,12,50,[10,15,27.5],True,'cond d2 session {} go'.format(session[i]))
 #%% plot psth
 import itertools
 session = [1,3,5,6,8,10]
 color = itertools.cycle(('#FBDA7A','#F99246',
                          '#B12D25','#3325B1',
                          '#255DB1','#25A3B1'))
+plt.figure(figsize = (4,4))
+
 for i in range(6):
-    deg_D1_go = stack_traces_from_multi_mice(deg_d1, partial_dict,
-                                                  'aligned_dff_average', 'go','axis1',
+    deg_D1_go = stack_traces_from_multi_mice(deg_d2, partial_dict,
+                                                  'aligned_dff_average', 'no_go','axis1',
                                                   partial = True, index_list=[i])
     # sns.heatmap(deg_D1_go_cond1)
-    ACTIVE = deg_D1_go[np.sum(deg_D1_go[:,13:18],axis = 1)>2,:]
+    ACTIVE = deg_D1_go[np.sum(deg_D1_go[:,13:18],axis = 1)>1,:]
     INHIBIT = deg_D1_go[np.sum(deg_D1_go[:,17:21],axis = 1)<-0.6,:]
     current_color = next(color)
     plt.plot(np.arange(ACTIVE.shape[1]),np.nanmean(ACTIVE,axis = 0),label = 'session {}'.format(session[i]),color = current_color)
@@ -230,14 +235,53 @@ for i in range(6):
     
 
 
-plt.legend()
+plt.legend(loc = 1,prop={'size': 6})
 
-plt.title('deg D1')
+plt.title('deg D2')
 plt.xticks(np.arange(0, 46, step=5),[0,1,2,3,4,5,6,7,8,9])
+plt.xlabel('time (s)')
+plt.ylabel('Zscore')
+# plt.ylim([-1.5,3])
 sns.despine()
-plt.savefig('figures/deg d1 active inhibit W D1-05 wo notr.png', bbox_inches="tight", dpi = 100,transparent = True)
+plt.savefig('figures2/nogo deg d2.png', bbox_inches="tight", dpi = 100,transparent = True)
    
 plt.show()
+
+#%% count active cell number
+group = deg_d1 + deg_d1_nonogo +deg_d1_notr
+num_active = np.full([len(group),6],np.nan)
+num_inhibit = np.full([len(group),6],np.nan)
+for k,mouse in enumerate(group):
+    for i in range(6):
+        data = partial_dict[mouse]['aligned_dff_average']['go'][i]
+        ACTIVE_num = data[np.mean(data[:,10:15],axis = 1)>0.8,:].shape[0]
+        INHIBIT_num = data[np.mean(data[:,17:21],axis = 1)<-0.4,:].shape[0]
+        num_active[k,i] = ACTIVE_num/data.shape[0]*100
+        num_inhibit[k,i] = INHIBIT_num/data.shape[0]*100
+        
+plt.figure(figsize = (4,4))
+plt.plot(num_active.T,label = group,alpha = 0.7) 
+plt.plot(np.mean(num_active,axis = 0),'-o',color = 'k')
+plt.legend(prop={'size': 6})
+plt.ylabel('# session')
+plt.xlabel('percentage')
+plt.title('% activated neurons')
+# plt.plot(num_inhibit)    
+plt.savefig('figures2/deg d1 perc active.png', bbox_inches="tight", dpi = 100,transparent = True)
+plt.show()  
+
+
+plt.figure(figsize = (4,4))
+plt.plot(num_inhibit.T,label = group,alpha = 0.7) 
+plt.plot(np.mean(num_inhibit,axis = 0),'-o',color = 'k')
+plt.legend(prop={'size': 6})
+plt.ylabel('# session')
+plt.xlabel('percentage')
+plt.title('% inhibited neurons')
+# plt.plot(num_inhibit)    
+plt.savefig('figures2/deg d1 perc inhibit.png', bbox_inches="tight", dpi = 100,transparent = True)
+plt.show() 
+    
 #%%
 session = [1,3,5,6,8,10]
 for i in range(6):
@@ -253,7 +297,7 @@ for i in range(6):
 
 deg_d1 = ['D1-02','D1-12','D1-13']
 #%%
-mat = stack_traces_from_multi_mice(deg_d1, partial_dict,
+mat = stack_traces_from_multi_mice(con_d1, partial_dict,
                                               'registered_aligned_dff_average', 'go','axis1',
                                               partial = False, index_list=None)
 # sns.heatmap(deg_D1_go_cond1)
@@ -263,7 +307,9 @@ for i in range(6):
     line_position.append(10+i*45)
     line_position.append(15+i*45)
     line_position.append(27.5+i*45)
-plot_heatmap_concat(mat,100,line_position,True,'tracked deg d1 w d1-05')
+plot_heatmap_concat(mat,100,line_position,True,[]
+                    |||||\
+                        \)
 #%%
 import sklearn
 normalized_mat = sklearn.preprocessing.normalize(mat, norm="l1")
