@@ -1,0 +1,343 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Wed Apr 13 17:36:52 2022
+
+@author: lechenqian
+"""
+
+import numpy as np
+import matplotlib.pyplot as plt
+import os
+from pathlib import Path
+from scipy import ndimage as ndi
+from skimage.morphology import watershed, dilation
+from skimage.segmentation import find_boundaries
+from skimage.io import imsave, imread
+from skimage.feature import peak_local_max
+import pickle
+import sys
+from skimage import io
+import time
+import h5py
+import os
+import math
+import pandas as pd
+import re
+import seaborn as sns
+import statsmodels
+import scipy
+import pickle5
+import json
+from collections import Counter
+import cv2
+#%%
+def image2uni8(image):
+    data = image.astype(np.float64) / image.max() # normalize the data to 0 - 1
+    data = 255 * data # Now scale by 255
+    uint8_im = data.astype(np.uint8)
+    return uint8_im
+
+def pickle_dict(df, path, filename):
+    try:
+        os.makedirs(path)  # create the path first
+    except FileExistsError:
+        print('the path exist.')
+    filename = path + '/{}.pickle'.format(filename)
+    with open(Path(filename), 'wb') as handle:
+        pickle.dump(df, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    print('save to pickle done!')
+
+def load_pickleddata(filename):
+    with open(Path(filename), 'rb') as handle:
+        try:
+            df = pickle.load(handle)
+        except:
+            df = pickle5.load(handle)
+
+    return df
+
+
+def pickle_dict(df, path, filename):
+    try:
+        os.makedirs(path)  # create the path first
+    except FileExistsError:
+        print('the path exist.')
+    filename = path + '/{}.pickle'.format(filename)
+    with open(Path(filename), 'wb') as handle:
+        pickle.dump(df, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    print('save to pickle done!')
+
+
+def stack_traces_from_multi_mice(mice_name:list, data:dict, keyname :str, trialtype: str,stack:str,partial,index_list):
+    traces_tensor_list = [] 
+
+    for mouse in mice_name:
+        if not partial:
+            temp_list = [item for item in data[mouse][keyname][trialtype]]
+            if stack == 'axis2':
+                stacked_multisesions_traces = np.dstack(temp_list)
+            elif stack == 'axis1':
+                stacked_multisesions_traces = np.hstack(temp_list)
+            elif stack == 'axis0':
+                stacked_multisesions_traces = np.vstack(temp_list)
+                
+                
+        else:
+            
+            temp_list = [data[mouse][keyname][trialtype][i] for i in index_list]
+            try:
+                if stack == 'axis2':
+                    stacked_multisesions_traces = np.dstack(temp_list)
+                elif stack == 'axis1':
+                    stacked_multisesions_traces = np.hstack(temp_list)
+                elif stack == 'axis0':
+                    stacked_multisesions_traces = np.vstack(temp_list)
+            except:
+                stacked_multisesions_traces = temp_list.copy()
+        traces_tensor_list.append(stacked_multisesions_traces)
+    trace_tensor_multi = np.concatenate(traces_tensor_list, axis = 0 )
+    return trace_tensor_multi
+
+
+def stack_sliced_avgtraces_from_multi_mice(mice_name:list, data:dict, keyname :str, trialtype: str,stack:str,slice_range:list):
+    traces_tensor_list = [] 
+
+    for mouse in mice_name:
+        
+        temp_list = [ item[:,slice_range[0]:slice_range[1]] for item in data[mouse][keyname][trialtype]]
+        if stack == 'axis2':
+            stacked_multisesions_traces = np.dstack(temp_list)
+        elif stack == 'axis1':
+            stacked_multisesions_traces = np.hstack(temp_list)
+        elif stack == 'axis0':
+            stacked_multisesions_traces = np.vstack(temp_list)
+                
+                
+        
+        traces_tensor_list.append(stacked_multisesions_traces)
+    trace_tensor_multi = np.concatenate(traces_tensor_list, axis = 0 )
+    return trace_tensor_multi
+
+
+def filter_assignment(mat,n_reg):
+    assignments_filtered = np.array(mat[np.sum(~np.isnan(mat), axis=1) >= n_reg], dtype=int)
+    return assignments_filtered
+def getKeys(dict):
+    list = []
+    for key in dict.keys():
+        list.append(key)
+    return list
+#%%
+filename ="/Users/lechenqian/Dropbox (Uchida Lab)/Analyze_imaging_data/partial_to_mac_2021-10-23_registration_and_registerd_matrices_added.pickle.pickle"
+partial_dict = load_pickleddata(filename)
+#%%
+deg_d1 = ['D1-02','D1-05','D1-12','D1-13']
+# deg_d1_nonogo = ['D1-02']
+# deg_d1 = ['D1-12','D1-13']
+deg_d2 = ['D2-02','D2-04','D2-16','D2-17']
+con_d1 = ['D1-15']
+con_d2 = ['D2-18','D2-21','D2-23','D2-24']
+deg_d1_notr  = ['D1-01','D1-03','D1-09']
+#%%
+
+def plot_heatmap2(avg_mat,odor_on_frame,window_pre,window_post,line_position,is_save,title):
+    
+    
+    plt.figure(figsize = (3,5))
+    
+    if window_pre == 5:
+        peak = np.mean(avg_mat[:,int(window_pre):int(window_pre+15)],axis = 1)
+    else:
+        peak = np.mean(avg_mat[:,int(window_pre):int(window_pre+15)],axis = 1)
+    order = np.argsort(-peak)
+    sns.heatmap(avg_mat[order,:],vmin = -5,vmax = 5,cmap = 'RdBu_r')
+    for pos in line_position:
+        plt.axvline(x = int(np.ceil(pos)),color = 'grey')
+    
+    plt.ylabel('Neuron #')
+    plt.xlabel('Time(s)')
+    plt.xticks(np.arange(0, 46, step=5),[0,1,2,3,4,5,6,7,8,9])
+    plt.yticks(np.arange(0, avg_mat.shape[0]+1, step=50),np.arange(0, avg_mat.shape[0]+1, step=50))
+    plt.title(title)
+    if is_save:
+        plt.savefig('figures2/{}'.format(title), bbox_inches="tight", dpi = 100,transparent = True)
+    plt.show()
+
+def plot_heatmap_concat(avg_mat,window_pre,line_position,is_save,title):
+    
+    
+    plt.figure(figsize = (12,5))
+    
+    if window_pre == 5:
+        peak = np.mean(avg_mat[:,int(window_pre):int(window_pre+15)],axis = 1)
+    else:
+        peak = np.mean(avg_mat[:,int(window_pre):int(window_pre+15)],axis = 1)
+    order = np.argsort(-peak)
+    sns.heatmap(avg_mat[order,:],vmin = -5,vmax = 5,cmap = 'RdBu_r')
+    for pos in line_position:
+        plt.axvline(x = int(np.ceil(pos)),color = 'grey')
+    
+    plt.ylabel('Neuron #')
+    plt.xlabel('Time(s)')
+    ticks = [0,1,2,3,4,5,6,7,8] * 6
+    plt.xticks(np.arange(0, 5*9*6, step=5),ticks)
+    plt.yticks(np.arange(0, avg_mat.shape[0]+1, step=50),np.arange(0, avg_mat.shape[0]+1, step=50))
+    plt.title(title)
+    if is_save:
+        plt.savefig('figures2/{}.png'.format(title), bbox_inches="tight", dpi = 100,transparent = True)
+    plt.show()
+    
+def plot_heatmap_concat_nonsort(avg_mat,window_pre,line_position,h_line_position,vlim, is_save,title):
+    
+    
+    plt.figure(figsize = (12,5))
+
+    sns.heatmap(avg_mat,vmin = -vlim,vmax = vlim,cmap = 'RdBu_r')
+    for pos in line_position:
+        plt.axvline(x = int(np.ceil(pos)),color = 'grey')
+    for pos in h_line_position:
+        plt.axhline(y = int(np.ceil(pos)),color = 'cyan')
+    
+    plt.ylabel('Neuron #')
+    plt.xlabel('Time(s)')
+    ticks = [0,1,2,3,4,5,6,7,8] * 6
+    plt.xticks(np.arange(0, 5*9*6, step=5),ticks)
+    plt.yticks(np.arange(0, avg_mat.shape[0]+1, step=50),np.arange(0, avg_mat.shape[0]+1, step=50))
+    plt.title(title)
+    if is_save:
+        plt.savefig('figures2/{}.png'.format(title), bbox_inches="tight", dpi = 100,transparent = True)
+    plt.show()
+#%%
+group = deg_d1 + deg_d1_nonogo + deg_d1_notr
+num_active = np.full([len(group),6],np.nan)
+num_inhibit = np.full([len(group),6],np.nan)
+for k,mouse in enumerate(group):
+    for i in range(6):
+        data = partial_dict[mouse]['aligned_dff_average']['go'][i]
+        ACTIVE_num = data[np.mean(data[:,10:15],axis = 1)>0.8,:].shape[0]
+        INHIBIT_num = data[np.mean(data[:,17:21],axis = 1)<-0.4,:].shape[0]
+        num_active[k,i] = ACTIVE_num/data.shape[0]*100
+        num_inhibit[k,i] = INHIBIT_num/data.shape[0]*100
+        
+        
+        
+#%%
+dims = [201,200]  
+for mouse in partial_dict.keys():
+    try:
+        spatials = partial_dict[mouse]['spatial_footprints']  
+        spatial_list = []
+        for i in range(6):
+            spatial_day = spatials[i]
+
+            centroids = np.full([spatial_day.shape[1],2],np.nan)
+            for neural_id in range(spatial_day.shape[1]):
+
+    
+                
+                im_fp = np.reshape(spatial_day[:,neural_id].toarray(),dims, order = 'F')
+                im_fp = image2uni8(im_fp) # 0-255
+                
+                # convert the grayscale image to binary image
+                thresh, im_bw = cv2.threshold(im_fp, 50, 255, cv2.THRESH_BINARY) #im_bw: binary image 
+                
+                # calculate moments of binary image
+                
+                M = cv2.moments(im_bw)
+                # calculate x,y coordinate of center
+                centroids[neural_id,0] = int(M["m10"] / M["m00"])
+                centroids[neural_id,1] = int(M["m01"] / M["m00"])
+            spatial_list.append(centroids)
+        partial_dict[mouse]['centroids'] = spatial_list
+    except:
+        pass
+
+        
+#%%    
+def select_res_neurons(mouse, status,threshold, session_id,trialtype, datatype):
+
+    
+    inds = []
+
+
+    responsive_neurons = partial_dict[mouse][datatype][trialtype][session_id]  
+    
+    # only counting the activated neurons
+    for j in range(responsive_neurons.shape[0]):           
+        is_active_period = np.mean(responsive_neurons[j,12:20])
+        if status == 'active':
+            
+            if is_active_period > threshold:
+                inds.append(j)
+        else:
+            if is_active_period < threshold:
+                inds.append(j)
+                
+    return inds
+        
+def calculate_distance(coor1, coor2):
+    dist = np.sqrt((coor1[0]-coor2[0])**2+(coor1[1]-coor2[1])**2)
+    return dist
+       
+def pairwise_distance(coor_list1,coor_list2 = None):
+    dist_list = [] 
+    if coor_list2 is None:
+            
+        for i in range(coor_list1.shape[0]-1):
+            for j in range(i+1,coor_list1.shape[0]):
+                dist = calculate_distance(coor_list1[i,:], coor_list1[j,:])
+                dist_list.append(dist)
+    else:
+        for i in range(coor_list1.shape[0]):
+            for j in range(coor_list2.shape[0]):
+                dist = calculate_distance(coor_list1[i,:], coor_list2[j,:])
+                dist_list.append(dist)
+        
+    return dist_list
+        
+        
+#%%
+group = deg_d2
+list_pw_active = []
+list_pw_inhibit = []
+list_pw_acinhi = []
+for k,mouse in enumerate(group):
+    i = 2
+    active_inds = select_res_neurons(mouse, 'active',1.5, i,
+                                     'go', 'aligned_dff_average')
+    coordinates_active = partial_dict[mouse]['centroids'][i][active_inds,:]
+    
+    inhibit_inds = select_res_neurons(mouse, 'inhibit',-0.8, i,
+                                     'go', 'aligned_dff_average')
+    coordinates_inhibit = partial_dict[mouse]['centroids'][i][inhibit_inds,:]
+    
+    pw_dist_active = pairwise_distance(coordinates_active)
+    pw_dist_inhibit = pairwise_distance(coordinates_inhibit)
+    pw_dist_acin = pairwise_distance(coordinates_active,coordinates_inhibit)
+    
+    list_pw_active += pw_dist_active
+    list_pw_inhibit += pw_dist_inhibit
+    list_pw_acinhi += pw_dist_acin
+        
+plt.figure(figsize=(5,4))
+sns.histplot(list_pw_active,bins = 10,element="step", stat='probability',
+                 fill=False,color='#584763',label = 'activated')  
+sns.histplot(list_pw_inhibit,bins = 10,element="step", stat='probability',
+                 fill=False,color='#5eb763',label = 'inhibited')  
+sns.histplot(list_pw_acinhi,bins = 10,element="step", stat='probability',
+                 fill=False,color='#518ab3',label = 'activated vs inhibit')  
+plt.xlabel('distance')
+plt.title('D2')
+plt.legend()
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        

@@ -1,0 +1,359 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Wed Apr 13 11:18:54 2022
+
+@author: lechenqian
+"""
+
+#%% import
+import numpy as np
+import matplotlib.pyplot as plt
+import os
+from pathlib import Path
+from scipy import ndimage as ndi
+from skimage.morphology import watershed, dilation
+from skimage.segmentation import find_boundaries
+from skimage.io import imsave, imread
+from skimage.feature import peak_local_max
+import pickle
+import sys
+from skimage import io
+import time
+import h5py
+import os
+import math
+import pandas as pd
+import re
+import seaborn as sns
+import statsmodels
+import scipy
+import pickle5
+import json
+from collections import Counter
+
+#%% functions
+def pickle_dict(df, path, filename):
+    try:
+        os.makedirs(path)  # create the path first
+    except FileExistsError:
+        print('the path exist.')
+    filename = path + '/{}.pickle'.format(filename)
+    with open(Path(filename), 'wb') as handle:
+        pickle.dump(df, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    print('save to pickle done!')
+
+def load_pickleddata(filename):
+    with open(Path(filename), 'rb') as handle:
+        try:
+            df = pickle.load(handle)
+        except:
+            df = pickle5.load(handle)
+
+    return df
+
+
+def pickle_dict(df, path, filename):
+    try:
+        os.makedirs(path)  # create the path first
+    except FileExistsError:
+        print('the path exist.')
+    filename = path + '/{}.pickle'.format(filename)
+    with open(Path(filename), 'wb') as handle:
+        pickle.dump(df, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    print('save to pickle done!')
+
+
+def stack_traces_from_multi_mice(mice_name:list, data:dict, keyname :str, trialtype: str,stack:str,partial,index_list):
+    traces_tensor_list = [] 
+
+    for mouse in mice_name:
+        if not partial:
+            temp_list = [item for item in data[mouse][keyname][trialtype]]
+            if stack == 'axis2':
+                stacked_multisesions_traces = np.dstack(temp_list)
+            elif stack == 'axis1':
+                stacked_multisesions_traces = np.hstack(temp_list)
+            elif stack == 'axis0':
+                stacked_multisesions_traces = np.vstack(temp_list)
+                
+                
+        else:
+            
+            temp_list = [data[mouse][keyname][trialtype][i] for i in index_list]
+            try:
+                if stack == 'axis2':
+                    stacked_multisesions_traces = np.dstack(temp_list)
+                elif stack == 'axis1':
+                    stacked_multisesions_traces = np.hstack(temp_list)
+                elif stack == 'axis0':
+                    stacked_multisesions_traces = np.vstack(temp_list)
+            except:
+                stacked_multisesions_traces = temp_list.copy()
+        traces_tensor_list.append(stacked_multisesions_traces)
+    trace_tensor_multi = np.concatenate(traces_tensor_list, axis = 0 )
+    return trace_tensor_multi
+
+
+def stack_sliced_avgtraces_from_multi_mice(mice_name:list, data:dict, keyname :str, trialtype: str,stack:str,slice_range:list):
+    traces_tensor_list = [] 
+
+    for mouse in mice_name:
+        
+        temp_list = [ item[:,slice_range[0]:slice_range[1]] for item in data[mouse][keyname][trialtype]]
+        if stack == 'axis2':
+            stacked_multisesions_traces = np.dstack(temp_list)
+        elif stack == 'axis1':
+            stacked_multisesions_traces = np.hstack(temp_list)
+        elif stack == 'axis0':
+            stacked_multisesions_traces = np.vstack(temp_list)
+                
+                
+        
+        traces_tensor_list.append(stacked_multisesions_traces)
+    trace_tensor_multi = np.concatenate(traces_tensor_list, axis = 0 )
+    return trace_tensor_multi
+
+
+def filter_assignment(mat,n_reg):
+    assignments_filtered = np.array(mat[np.sum(~np.isnan(mat), axis=1) >= n_reg], dtype=int)
+    return assignments_filtered
+def getKeys(dict):
+    list = []
+    for key in dict.keys():
+        list.append(key)
+    return list
+
+
+def plot_heatmap2(avg_mat,odor_on_frame,window_pre,window_post,line_position,is_save,title):
+    
+    
+    
+    
+    if window_pre == 5:
+        peak = np.mean(avg_mat[:,int(window_pre):int(window_pre+15)],axis = 1)
+    else:
+        peak = np.mean(avg_mat[:,int(window_pre):int(window_pre+10)],axis = 1)
+    order = np.argsort(-peak)
+    sns.heatmap(avg_mat[order,:],vmin = -5,vmax = 5,cmap = 'RdBu_r')
+    for pos in line_position:
+        plt.axvline(x = int(np.ceil(pos)),color = 'grey')
+    
+    plt.ylabel('Neuron #')
+    plt.xlabel('Time(s)')
+    plt.xticks(np.arange(0, 46, step=5),[0,1,2,3,4,5,6,7,8,9])
+    plt.yticks(np.arange(0, avg_mat.shape[0]+1, step=50),np.arange(0, avg_mat.shape[0]+1, step=50))
+    plt.title(title)
+    if is_save:
+        plt.savefig('figures/{}'.format(title), bbox_inches="tight", dpi = 100,transparent = True)
+    
+
+def plot_heatmap_concat(avg_mat,window_pre,line_position,is_save,title,vmin=-5,vmax = 5,figsize = (12,7),x_ticks = list(np.arange(8))):
+    
+    
+    plt.figure(figsize = figsize)
+    
+    if window_pre == 5:
+        peak = np.mean(avg_mat[:,int(window_pre):int(window_pre+15)],axis = 1)
+    else:
+        peak = np.mean(avg_mat[:,int(window_pre):int(window_pre+15)],axis = 1)
+    order = np.argsort(-peak)
+    sns.heatmap(avg_mat[order,:],vmin = vmin,vmax = vmax,cmap = 'RdBu_r')
+    for pos in line_position:
+        plt.axvline(x = int(np.ceil(pos)),color = 'grey')
+    
+    plt.ylabel('Neuron #')
+    plt.xlabel('Time(s)')
+    ticks = list(x_ticks) * int(len(line_position)/3)
+    plt.xticks(np.arange(0, 5*len(x_ticks)*int(len(line_position)/3), step=5),ticks)
+    plt.yticks(np.arange(0, avg_mat.shape[0]+1, step=50),np.arange(0, avg_mat.shape[0]+1, step=50))
+    plt.title(title)
+    if is_save:
+        plt.savefig('figures/{}.png'.format(title), bbox_inches="tight", dpi = 100,transparent = True)
+    plt.show()
+    
+def plot_heatmap_concat_nonsort(avg_mat,window_pre,line_position,h_line_position,vlim, is_save,title):
+    
+    
+    plt.figure(figsize = (12,7))
+
+    sns.heatmap(avg_mat,vmin = -vlim,vmax = vlim,cmap = 'RdBu_r')
+    for pos in line_position:
+        plt.axvline(x = int(np.ceil(pos)),color = 'grey')
+    for pos in h_line_position:
+        plt.axhline(y = int(np.ceil(pos)),color = 'cyan')
+    
+    plt.ylabel('Neuron #')
+    plt.xlabel('Time(s)')
+    ticks = [0,1,2,3,4,5,6,7,8] * 6
+    plt.xticks(np.arange(0, 5*9*6, step=5),ticks)
+    plt.yticks(np.arange(0, avg_mat.shape[0]+1, step=50),np.arange(0, avg_mat.shape[0]+1, step=50))
+    plt.title(title)
+    if is_save:
+        plt.savefig('figures/{}.png'.format(title), bbox_inches="tight", dpi = 100,transparent = True)
+    plt.show()
+    
+#%% LOAD DATA
+
+filename ="/Users/lechenqian/Dropbox (Uchida Lab)/Analyze_imaging_data/partial_to_mac_2021-11-03_avg_trace_registered_nan_filled_added.pickle"
+partial_dict = load_pickleddata(filename)
+#%% define mouse groups
+deg_d1 = ['D1-02','D1-05','D1-12','D1-13']
+# deg_d1 = ['D1-12','D1-13']
+deg_d2 = ['D2-02','D2-04','D2-16','D2-17']
+con_d1 = ['D1-15']
+con_d2 = ['D2-18','D2-21','D2-23','D2-24']
+deg_d1_notr  = ['D1-01','D1-03','D1-09'] # NOT BEING REGISTERED
+
+#%% concate signals from 6 sessions horizontally and stack go,no go on the third dimension
+
+
+def count_activation_time(group, threshold, session_num,trialtype, datatype):
+    
+    activated_time = []
+    for i in range(session_num):
+
+        responsive_neurons = stack_traces_from_multi_mice(group, partial_dict,
+                                                      datatype, trialtype,'axis1',
+                                                      partial = True, index_list=[i])
+        
+        # only counting the activated neurons
+        for j in range(responsive_neurons.shape[0]):
+            for k in range(10,responsive_neurons.shape[1]-5):
+                is_active_period = np.mean(responsive_neurons[j,k:k+8])
+                if is_active_period > threshold:
+                    activated_time.append((k-10)/5)
+                    break
+                    
+    return activated_time
+
+def count_activation_peak(group, threshold, session_num,trialtype, datatype):
+    
+    activated_peak = []
+    inhibited_peak = []
+    for i in range(session_num):
+
+        responsive_neurons = stack_traces_from_multi_mice(group, partial_dict,
+                                                      datatype, trialtype,'axis1',
+                                                      partial = True, index_list=[i])
+        
+        # only counting the activated neurons
+        for j in range(responsive_neurons.shape[0]):
+            ind_peak = np.argmax(np.abs(responsive_neurons[j,10:]))
+            
+            if np.mean(responsive_neurons[j,ind_peak-2:ind_peak+3]) > 1:
+                activated_peak.append(responsive_neurons[j,ind_peak])
+            elif np.mean(responsive_neurons[j,ind_peak-2:ind_peak+3]) <-1:
+                inhibited_peak.append(responsive_neurons[j,ind_peak])
+                
+                                                        
+
+                    
+    return activated_peak,inhibited_peak
+datatype = 'aligned_dff_average'
+threshold1 = 1
+trialtype = 'go'
+deg_d2_time = count_activation_time(deg_d2, threshold1, 6,trialtype, datatype)
+deg_d2_peak_ac,deg_d2_peak_in = count_activation_peak(deg_d2, threshold1, 6,trialtype, datatype)
+
+threshold2 = 3
+deg_d1_time = count_activation_time(deg_d1, threshold2, 6,trialtype, datatype)
+deg_d1_peak_ac,deg_d1_peak_in = count_activation_peak(deg_d1+deg_d1_notr, threshold2, 6,trialtype, datatype)
+
+plt.figure(figsize  = (4,4))
+sns.histplot(deg_d1_time,bins = 10,element="step", stat='probability',
+                 fill=False,color='#584763',label = 'D1')
+
+sns.histplot(deg_d2_time,bins = 10,element="step", stat='probability',
+                 fill=False,color='#ef4793',label = 'D2')
+plt.legend()
+plt.xlabel('Time after odor onset (s)')
+plt.title('activation time')
+plt.show()
+
+fig,ax = plt.subplots(1,2, figsize  = (9,4))
+sns.histplot(deg_d1_peak_ac,bins = 10,element="step", stat='probability',
+                 fill=False,color='#584763',label = 'D1',ax  = ax[0])
+
+sns.histplot(deg_d2_peak_ac,bins = 10,element="step", stat='probability',
+                 fill=False,color='#ef4793',label = 'D2',ax  = ax[0])
+
+
+sns.histplot(deg_d1_peak_in,bins = 10,element="step", stat='probability',
+                 fill=False,color='#584763',label = 'D1',ax  = ax[1])
+
+sns.histplot(deg_d2_peak_in,bins = 10,element="step", stat='probability',
+                 fill=False,color='#ef4793',label = 'D2',ax  = ax[1])
+
+plt.legend()
+plt.xlabel('peak signal (zscore)')
+plt.suptitle('activation peak')
+plt.show()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
