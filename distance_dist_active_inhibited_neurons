@@ -298,7 +298,7 @@ def pairwise_distance(coor_list1,coor_list2 = None):
         
         
 #%%
-group = deg_d2
+group = deg_d1 +deg_d1_notr
 list_pw_active = []
 list_pw_inhibit = []
 list_pw_acinhi = []
@@ -321,14 +321,14 @@ for k,mouse in enumerate(group):
     list_pw_acinhi += pw_dist_acin
         
 plt.figure(figsize=(5,4))
-sns.histplot(list_pw_active,bins = 10,element="step", stat='probability',
+sns.histplot(list_pw_active,bins = 20,element="step", stat='probability',
                  fill=False,color='#584763',label = 'activated')  
-sns.histplot(list_pw_inhibit,bins = 10,element="step", stat='probability',
+sns.histplot(list_pw_inhibit,bins = 20,element="step", stat='probability',
                  fill=False,color='#5eb763',label = 'inhibited')  
-sns.histplot(list_pw_acinhi,bins = 10,element="step", stat='probability',
+sns.histplot(list_pw_acinhi,bins = 20,element="step", stat='probability',
                  fill=False,color='#518ab3',label = 'activated vs inhibit')  
 plt.xlabel('distance')
-plt.title('D2')
+plt.title('D1')
 plt.legend()
         
         
